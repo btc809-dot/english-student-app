@@ -2435,6 +2435,41 @@ db.homework ||= []; db.exams ||= []; db.examResults ||= []; db.notes ||= []; db.
 const $=id=>document.getElementById(id);
 function localDateISO(date=new Date()){const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');return `${y}-${m}-${d}`;}
 function localMonthISO(date=new Date()){return localDateISO(date).slice(0,7);}
+function isExpiredAuthError(err){
+  const message=String(err?.message||err||'').toLowerCase();
+  const status=Number(err?.status||err?.statusCode||0);
+  return message.includes('jwt expired') || message.includes('invalid jwt') ||
+    message.includes('token is expired') || message.includes('access token expired') ||
+    message.includes('refresh token') || status===401;
+}
+async function refreshCloudSession(){
+  if(!supabaseClient?.auth)throw new Error('تعذر الاتصال بخدمة تسجيل الدخول.');
+  const {data,error}=await supabaseClient.auth.refreshSession();
+  if(error)throw new Error('انتهت جلسة الدخول. سجّل الدخول مرة أخرى لإكمال المزامنة. '+(error.message||''));
+  if(!data?.session)throw new Error('انتهت جلسة الدخول. سجّل الدخول مرة أخرى لإكمال المزامنة.');
+  currentSession=data.session;
+  return currentSession;
+}
+async function syncCloudChangesWithAuthRetry(){
+  const performSync=async()=>{
+    if(currentRole==='admin') await syncDatabase();
+    else if(currentRole==='assistant') await syncAssistantChanges();
+    else throw new Error('الدور الحالي غير مصرح له بالحفظ.');
+    await syncVocabLessons();
+  };
+  try{
+    // Refresh shortly before expiry; Supabase auto-refresh remains enabled as well.
+    const expiresAt=Number(currentSession?.expires_at||0);
+    if(expiresAt && expiresAt*1000<=Date.now()+90000) await refreshCloudSession();
+    await performSync();
+  }catch(err){
+    if(!isExpiredAuthError(err))throw err;
+    // A request may have reached the server before the expired-token response.
+    // The sync operations use upserts, so retrying is safe and idempotent.
+    await refreshCloudSession();
+    await performSync();
+  }
+}
 async function save(){
   // Persist locally first, then report cloud success/failure separately.
   const localSnapshot=JSON.stringify(db);
@@ -2451,10 +2486,7 @@ async function save(){
     return false;
   }
   try {
-    if(currentRole === 'admin') await syncDatabase();
-    else if(currentRole === 'assistant') await syncAssistantChanges();
-    else throw new Error('الدور الحالي غير مصرح له بالحفظ.');
-    await syncVocabLessons();
+    await syncCloudChangesWithAuthRetry();
     clearAppSyncPending();
     await markOfflineVaultSynced();
     if(currentRole==='assistant' && assistantBaseline){try{localStorage.setItem(ASSISTANT_BASELINE_KEY,JSON.stringify(assistantBaseline));}catch(e){console.warn('Could not persist assistant sync baseline:',e);}}
@@ -2462,8 +2494,9 @@ async function save(){
     return true;
   } catch(err){
     console.error('Save failed:',err);
-    setCloudStatus('فشل الحفظ السحابي');
-    alert('لم يكتمل الحفظ السحابي. التغيير موجود محلياً فقط حتى إصلاح الخطأ:\n'+(err.message||err));
+    setCloudStatus('فشل الحفظ السحابي - البيانات محفوظة محلياً');
+    const authHint=isExpiredAuthError(err)?'\nيرجى تسجيل الخروج ثم تسجيل الدخول مرة أخرى، وبعدها أعد المزامنة.':'';
+    alert('لم يكتمل الحفظ السحابي. التغيير محفوظ على هذا الجهاز وسيظل بانتظار المزامنة:\n'+(err.message||err)+authHint);
     return false;
   }
 }
