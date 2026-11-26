@@ -2163,7 +2163,18 @@ body.cloud-authenticated #dashboard .staff-home-stats>.stat .student-home-stat-i
           <div class="student-vocab-heading"><div><h2>📖 English Reading & Listening</h2><p class="hint">اقرأ موضوعات المنهج واستمع للنطق الإنجليزي جملةً جملة أو للموضوع كاملًا.</p></div></div>
           <div id="studentReadingLessonList"></div>
           <div id="studentReadingDetail" class="hidden" style="margin-top:14px">
-            <div class="toolbar"><button type="button" class="secondary" onclick="backToStudentReadingList()">← قائمة الموضوعات</button><label style="min-width:180px">الصوت المستخدم <strong>🇺🇸 أمريكي – Jenny Neural</strong></label></div>
+            <div class="toolbar"><button type="button" class="secondary" onclick="backToStudentReadingList()">← قائمة الموضوعات</button></div>
+            <div class="toolbar" style="justify-content:flex-start;margin:10px 0;padding:10px;background:#f7f5ff;border:1px solid #e8e0ff;border-radius:10px;gap:10px;flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700">اختيار اللهجة
+                <select id="studentReadingVoicePicker" onchange="setSelectedVocabVoice(this.value)" style="min-width:170px">
+                  <option value="en-US-JennyNeural">🇺🇸 أمريكي — Jenny</option>
+                  <option value="en-GB-SoniaNeural">🇬🇧 بريطاني — Sonia</option>
+                </select>
+              </label>
+              <button type="button" class="secondary" onclick="testReadingVoice('readingVoiceStatus')">🎧 تجربة الصوت المحدد</button>
+              <span id="readingVoiceStatus" class="hint" aria-live="polite">اختر اللهجة ثم جرّب الصوت.</span>
+              <small class="hint" style="display:block">يُحفظ كل صوت بشكل مستقل بعد أول تشغيل على هذا الجهاز.</small>
+            </div>
             <div class="reading-speed-control"><label for="readingSpeedRange">سرعة القراءة: <strong id="readingSpeedValue">1.0×</strong></label><div class="reading-speed-row"><span>🐢 بطيء</span><input id="readingSpeedRange" type="range" min="0.5" max="1.5" step="0.1" value="1" oninput="updateReadingSpeed(this.value)"><span>سريع 🐇</span></div><small class="hint">حرّك المؤشر لاختيار السرعة المناسبة، وسيتم حفظ اختيارك تلقائيًا.</small></div>
             <h2 id="studentReadingTitle" dir="auto"></h2><p id="studentReadingUnit" class="hint"></p>
             <div class="reading-player-actions"><button type="button" onclick="playAllReadingSentences()">▶️ استمع للموضوع كاملًا</button><button type="button" class="secondary" onclick="stopReadingAudio()">⏹ إيقاف</button></div>
@@ -2332,7 +2343,18 @@ body.cloud-authenticated #dashboard .staff-home-stats>.stat .student-home-stat-i
   </div>
   <div id="readingManagerList"></div>
   <div id="adminReadingPlayer" class="hidden" style="margin-top:14px">
-    <div class="toolbar"><button type="button" class="secondary" onclick="backToAdminReadingList()">← قائمة الموضوعات</button><span class="hint">الصوت الأمريكي نفسه المستخدم في قسم الكلمات: Jenny Neural 🇺🇸</span></div>
+    <div class="toolbar"><button type="button" class="secondary" onclick="backToAdminReadingList()">← قائمة الموضوعات</button></div>
+    <div class="toolbar" style="justify-content:flex-start;margin:10px 0;padding:10px;background:#f7f5ff;border:1px solid #e8e0ff;border-radius:10px;gap:10px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700">اختيار اللهجة
+        <select id="adminReadingVoicePicker" onchange="setSelectedVocabVoice(this.value)" style="min-width:170px">
+          <option value="en-US-JennyNeural">🇺🇸 أمريكي — Jenny</option>
+          <option value="en-GB-SoniaNeural">🇬🇧 بريطاني — Sonia</option>
+        </select>
+      </label>
+      <button type="button" class="secondary" onclick="testReadingVoice('adminReadingVoiceStatus')">🎧 تجربة الصوت المحدد</button>
+      <span id="adminReadingVoiceStatus" class="hint" aria-live="polite">اختر اللهجة ثم جرّب الصوت.</span>
+      <small class="hint" style="display:block">يُحفظ كل صوت بشكل مستقل بعد أول تشغيل على هذا الجهاز.</small>
+    </div>
     <div class="reading-speed-control"><label for="adminReadingSpeedRange">سرعة القراءة: <strong id="adminReadingSpeedValue">1.0×</strong></label><div class="reading-speed-row"><span>🐢 بطيء</span><input id="adminReadingSpeedRange" type="range" min="0.5" max="1.5" step="0.1" value="1" oninput="updateReadingSpeed(this.value)"><span>سريع 🐇</span></div><small class="hint">يمكنك تغيير سرعة الاستماع، وسيُحفظ اختيارك.</small></div>
     <h2 id="adminReadingTitle" dir="auto"></h2><p id="adminReadingUnit" class="hint"></p>
     <div class="reading-player-actions"><button type="button" onclick="playAllReadingSentences()">▶️ استمع للنص كاملًا</button><button type="button" class="secondary" onclick="stopReadingAudio()">⏹ إيقاف</button></div>
@@ -3413,8 +3435,8 @@ function updateVocabVoiceStatus(){
   const el=document.getElementById('vocabVoiceStatus');
   const voice=getSelectedVocabVoice();
   if(el)el.textContent=voice===AZURE_BRITISH_VOICE?'النطق السحابي البريطاني بصوت Sonia Neural محدد.':'النطق السحابي الأمريكي بصوت Jenny Neural محدد.';
-  const picker=document.getElementById('vocabVoicePicker');
-  if(picker&&picker.value!==voice)picker.value=voice;
+  ['vocabVoicePicker','studentReadingVoicePicker','adminReadingVoicePicker'].forEach(id=>{const picker=document.getElementById(id);if(picker&&picker.value!==voice)picker.value=voice;});
+  ['readingVoiceStatus','adminReadingVoiceStatus'].forEach(id=>{const status=document.getElementById(id);if(status)status.textContent=voice===AZURE_BRITISH_VOICE?'اللهجة المحددة: بريطاني — Sonia.':'اللهجة المحددة: أمريكي — Jenny.';});
 }
 function openVocabAudioDB(){
   return new Promise((resolve,reject)=>{
@@ -3541,6 +3563,13 @@ function speakVocab(text){
 }
 
 function testVocabVoice(){speakVocab('Hello! Welcome to your English vocabulary practice.');}
+function testReadingVoice(statusId){
+  const status=document.getElementById(statusId);
+  playOnlineVocabVoice('Hello! Welcome to your English reading practice.',{statusElement:status,playingMessage:'جاري تجربة الصوت المحدد…'}).then(ok=>{
+    if(status&&ok)status.textContent='انتهى النطق.';
+    else if(status&&!ok)status.textContent='تعذر تشغيل الصوت. تحقق من الاتصال وحاول مرة أخرى.';
+  });
+}
 updateVocabVoiceStatus();
 function shuffleVocabWords(words){
   const shuffled=(Array.isArray(words)?words:[]).slice();
@@ -4467,8 +4496,8 @@ async function playReadingQueueWithSharedVoice(token,queue,sentences){
       readingQueuePosition=position;
       setActiveReadingSentence(sentenceIndex);
       const playingMessage=queue.length===1
-        ?'جاري نطق الجملة بالصوت الأمريكي نفسه المستخدم في قسم الكلمات…'
-        :`جاري قراءة الجملة ${position+1} من ${queue.length} بالصوت الأمريكي نفسه المستخدم في قسم الكلمات…`;
+        ?'جاري نطق الجملة باللهجة المحددة…'
+        :`جاري قراءة الجملة ${position+1} من ${queue.length} باللهجة المحددة…`;
       if(status)status.textContent=playingMessage;
       const completed=await playOnlineVocabVoice(sentence,{
         statusElement:status,
@@ -4487,7 +4516,7 @@ async function playReadingQueueWithSharedVoice(token,queue,sentences){
     if(token!==readingPlaybackToken)return;
     readingQueue=[];readingQueuePosition=queue.length;
     readingSentencesHost()?.querySelectorAll('.reading-sentence').forEach(el=>el.classList.remove('active'));
-    if(status)status.textContent='انتهى الاستماع إلى النص بصوت Jenny Neural.';
+    if(status)status.textContent='انتهى الاستماع إلى النص باللهجة المحددة.';
   }catch(error){
     if(token!==readingPlaybackToken)return;
     console.error('Reading Azure TTS error:',error);
