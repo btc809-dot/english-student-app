@@ -2254,7 +2254,7 @@ body.cloud-authenticated #dashboard .staff-home-stats>.stat .student-home-stat-i
   </div>
   <p id="studentAccountHint" class="hint" style="margin:8px 0 0">يمكن إنشاء الحساب بعد حفظ الطالب. يتطلب ذلك إعداد Supabase Edge Function الآمنة.</p>
 </div>
-<button onclick="addStudent()">+ إضافة طالب</button><div class="table-wrap" style="margin-top:15px"><table><thead><tr><th>الاسم</th><th>الهاتف</th><th>ولي الأمر</th><th>المرحلة</th><th>المجموعة</th><th>تواصل / QR</th><th>إجراء</th></tr></thead><tbody id="studentsRows"></tbody></table></div></div></div>
+<button onclick="addStudent()">+ إضافة طالب</button><div class="formgrid" style="margin-top:16px"><label>عرض سجل مجموعة محددة<select id="studentsGroupFilter" onchange="renderStudentRows()"><option value="">كل المجموعات</option></select></label></div><div class="table-wrap" style="margin-top:15px"><table><thead><tr><th>الاسم</th><th>الهاتف</th><th>ولي الأمر</th><th>المرحلة</th><th>المجموعة</th><th>تواصل / QR</th><th>إجراء</th></tr></thead><tbody id="studentsRows"></tbody></table></div></div></div>
 <div id="groups" class="page hidden">
   <div class="panel groups-panel">
     <h2>إدارة المجموعات</h2>
@@ -3202,12 +3202,23 @@ function renderLeaderboard(){
   }).join('');
 }
 
+function renderStudentRows(){
+  const host=$('studentsRows');if(!host)return;
+  const groupId=$('studentsGroupFilter')?.value||'';
+  const visibleStudents=(db.students||[]).filter(s=>!groupId||String(s.groupId)===String(groupId));
+  host.innerHTML=visibleStudents.map(s=>{
+    const accountActions=currentRole==='admin'?(studentAccountStatusLoaded?(studentAccountIds.has(s.id)?`<span class="account-exists">✓ الحساب موجود</span>${s.phone?`<button class="secondary" onclick="resetStudentPassword('${s.id}')">🔑 إعادة ضبط كلمة السر</button>`:''}`:`${s.phone?`<button class="secondary" onclick="createStudentAccountFromRow('${s.id}')">🔐 إنشاء حساب</button>`:'<span class="hint">أضف رقم الهاتف لإنشاء حساب</span>'}`):`<span class="hint">تعذر تحميل حالة الحساب</span>`):'';
+    return `<tr><td>${esc(s.name)}</td><td>${esc(s.phone)}</td><td>${esc(s.guardian)}</td><td>${esc(s.stage)}</td><td>${esc(db.groups.find(g=>g.id===s.groupId)?.name||'—')}</td><td class="actions"><button class="green" onclick="whatsappAbsence('${s.id}')">واتساب</button><button class="secondary" onclick="showQR('${s.id}')">QR</button><button class="secondary" onclick="editStudent('${s.id}')">تعديل</button>${accountActions}</td><td>${isAssistant()?'':`<button class="red" onclick="delItem('students','${s.id}')">حذف</button>`}</td></tr>`;
+  }).join('')||`<tr><td colspan="7" class="empty">${groupId?'لا يوجد طلاب في المجموعة المختارة':'لا يوجد طلاب بعد'}</td></tr>`;
+}
+
 function renderAll(){
 // احتفظ بالمجموعة المختارة في الحضور والتقييمات عند إعادة رسم الواجهة بعد أي إجراء أو حفظ.
 const selectedAttendanceGroup=$('attGroup')?.value||'';
 const selectedEvaluationGroup=$('evalGroup')?.value||'';
 const selectedEvaluationStudent=$('evalStudent')?.value||'';
 const selectedEvaluationHistoryGroup=$('evalHistoryGroup')?.value||'';
+const selectedStudentsGroup=$('studentsGroupFilter')?.value||'';
 renderReadingManager();
 options('studentGroup',db.groups,'بدون مجموعة');options('vocabGroup',db.groups,'كل المجموعات');options('readingGroup',db.groups,'كل المجموعات');options('attGroup',db.groups,'كل المجموعات');
 if($('attGroup')) $('attGroup').value=db.groups.some(g=>String(g.id)===String(selectedAttendanceGroup))?selectedAttendanceGroup:'';
@@ -3217,7 +3228,7 @@ if($('evalGroup')) $('evalGroup').value=db.groups.some(g=>String(g.id)===String(
 updateEvaluationStudents();
 if($('evalStudent') && db.students.some(st=>String(st.id)===String(selectedEvaluationStudent)&&String(st.groupId)===String(selectedEvaluationGroup))) $('evalStudent').value=selectedEvaluationStudent;
 options('payGroup',db.groups,'اختر المجموعة');updatePayStudents();options('noteStudent',db.students,'اختر الطالب');options('reportStudent',db.students,'اختر الطالب');options('hwGroup',db.groups,'اختر المجموعة');options('examGroup',db.groups,'اختر المجموعة');options('remGroup',db.groups,'اختر المجموعة');
-$('studentsRows').innerHTML=db.students.map(s=>{const accountActions=currentRole==='admin'?(studentAccountStatusLoaded?(studentAccountIds.has(s.id)?`<span class="account-exists">✓ الحساب موجود</span>${s.phone?`<button class="secondary" onclick="resetStudentPassword('${s.id}')">🔑 إعادة ضبط كلمة السر</button>`:''}`:`${s.phone?`<button class="secondary" onclick="createStudentAccountFromRow('${s.id}')">🔐 إنشاء حساب</button>`:'<span class="hint">أضف رقم الهاتف لإنشاء حساب</span>'}`):`<span class="hint">تعذر تحميل حالة الحساب</span>`):'';return `<tr><td>${esc(s.name)}</td><td>${esc(s.phone)}</td><td>${esc(s.guardian)}</td><td>${esc(s.stage)}</td><td>${esc(db.groups.find(g=>g.id===s.groupId)?.name||'—')}</td><td class="actions"><button class="green" onclick="whatsappAbsence('${s.id}')">واتساب</button><button class="secondary" onclick="showQR('${s.id}')">QR</button><button class="secondary" onclick="editStudent('${s.id}')">تعديل</button>${accountActions}</td><td>${isAssistant()?'':`<button class="red" onclick="delItem('students','${s.id}')">حذف</button>`}</td></tr>`}).join('')||'<tr><td colspan="7" class="empty">لا يوجد طلاب بعد</td></tr>';
+const studentsGroupFilter=$('studentsGroupFilter');if(studentsGroupFilter){studentsGroupFilter.innerHTML='<option value="">كل المجموعات</option>'+db.groups.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('');if(db.groups.some(g=>String(g.id)===String(selectedStudentsGroup)))studentsGroupFilter.value=selectedStudentsGroup;}renderStudentRows();
 $('groupsCards').innerHTML=db.groups.map(g=>{const count=db.students.filter(s=>s.groupId===g.id).length;return `<div class="group-card" onclick="showGroupStudents('${g.id}')"><h3>${esc(g.name)}</h3><p>${esc(g.stage||'لم تحدد المرحلة والصف')}</p><p>🕒 ${esc(g.time||'لم يحدد الموعد')}</p><p>👥 ${count} طالب</p>${isAssistant()?'':`<div class="group-card-actions"><button type="button" class="secondary" onclick="event.stopPropagation();editGroup('${g.id}')">تعديل</button><button type="button" class="red" onclick="event.stopPropagation();delItem('groups','${g.id}')">حذف</button></div>`}</div>`}).join('')||'<div class="empty">لا توجد مجموعات بعد</div>';
 const evalTotals=db.evaluations.map(e=>Number(e.total)||0),evalAvg=evalTotals.length?Math.round(evalTotals.reduce((a,b)=>a+b,0)/evalTotals.length):0,evalBest=evalTotals.length?Math.max(...evalTotals):0;
 $('evaluationSummary').innerHTML=`<div class="evaluation-stat"><span>📋 عدد التقييمات</span><b>${evalTotals.length}</b><small>تقييم مسجل</small></div><div class="evaluation-stat"><span>📈 متوسط الدرجات</span><b>${evalAvg}<em>/50</em></b><small>${evalAvg>=42.5?'مستوى ممتاز':evalAvg>=35?'مستوى جيد جداً':evalAvg>=25?'يحتاج متابعة':'متابعة وتشجيع'}</small></div><div class="evaluation-stat"><span>🏅 أعلى درجة</span><b>${evalBest}<em>/50</em></b><small>أعلى تقييم مسجل</small></div>`;
