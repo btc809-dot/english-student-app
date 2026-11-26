@@ -2354,8 +2354,14 @@ body.cloud-authenticated #dashboard .staff-home-stats>.stat .student-home-stat-i
   <div class="toolbar"><button type="button" onclick="extractVocabFiles()">📥 استخراج الكلمات من الملفات</button><button type="button" class="secondary" onclick="addVocabRow()">+ إضافة كلمة يدوياً</button></div>
   <p id="vocabImportStatus" class="hint" aria-live="polite">يدعم ملفات PDF والصور. بعد الاستخراج راجع النص لأن جودة الصور أو وضوح الطباعة قد يؤثران على القراءة.</p>
   <div class="toolbar" style="justify-content:flex-start;margin:10px 0;padding:10px;background:#f7f5ff;border:1px solid #e8e0ff;border-radius:10px">
-    <button type="button" class="secondary" onclick="testVocabVoice()">🎧 تجربة الصوت الأمريكي</button>
-    <span id="vocabVoiceStatus" class="hint" aria-live="polite">جاري تجهيز أصوات الإنجليزية الأمريكية…</span><small class="hint" style="display:block">يُحفظ الصوت بعد أول تشغيل على هذا الجهاز لإعادة استخدامه لاحقاً.</small>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700">اختيار اللهجة
+      <select id="vocabVoicePicker" onchange="setSelectedVocabVoice(this.value)" style="min-width:170px">
+        <option value="en-US-JennyNeural">🇺🇸 أمريكي — Jenny</option>
+        <option value="en-GB-SoniaNeural">🇬🇧 بريطاني — Sonia</option>
+      </select>
+    </label>
+    <button type="button" class="secondary" onclick="testVocabVoice()">🎧 تجربة الصوت المحدد</button>
+    <span id="vocabVoiceStatus" class="hint" aria-live="polite">جارٍ تجهيز الصوت…</span><small class="hint" style="display:block">يُحفظ كل صوت بشكل مستقل بعد أول تشغيل على هذا الجهاز.</small>
   </div>
   <label style="display:block;font-size:13px;color:var(--muted);margin:12px 0 7px">مراجعة الكلمات والمعاني — كل سطر: English | المعنى العربي</label>
   <textarea id="vocabRawText" rows="9" style="width:100%;border:1px solid #e2d9ef;border-radius:12px;padding:12px;font:14px/1.9 Tahoma,Arial;resize:vertical" placeholder="apple | تفاحة&#10;market | سوق&#10;How much? | بكم؟"></textarea>
@@ -3393,9 +3399,22 @@ async function deleteVocabLesson(id,silent=false){const l=db.vocabLessons.find(x
 let vocabFallbackAudio=null, vocabAudioObjectUrl=null, vocabPlaybackToken=0, vocabPlaybackResolve=null;
 const VOCAB_AUDIO_DB='mr-ibrahim-vocab-audio-v2', VOCAB_AUDIO_STORE='clips';
 const AZURE_VOCAB_VOICE='en-US-JennyNeural';
+const AZURE_BRITISH_VOICE='en-GB-SoniaNeural';
+function getSelectedVocabVoice(){
+  try{return localStorage.getItem('mrIbrahimVocabVoice')===AZURE_BRITISH_VOICE?AZURE_BRITISH_VOICE:AZURE_VOCAB_VOICE;}
+  catch(e){return AZURE_VOCAB_VOICE;}
+}
+function setSelectedVocabVoice(voice){
+  const selected=voice===AZURE_BRITISH_VOICE?AZURE_BRITISH_VOICE:AZURE_VOCAB_VOICE;
+  try{localStorage.setItem('mrIbrahimVocabVoice',selected);}catch(e){}
+  updateVocabVoiceStatus();
+}
 function updateVocabVoiceStatus(){
   const el=document.getElementById('vocabVoiceStatus');
-  if(el) el.textContent='النطق السحابي الأمريكي بصوت Jenny Neural جاهز بعد إعداد Azure Speech وربطه بـ Supabase.';
+  const voice=getSelectedVocabVoice();
+  if(el)el.textContent=voice===AZURE_BRITISH_VOICE?'النطق السحابي البريطاني بصوت Sonia Neural محدد.':'النطق السحابي الأمريكي بصوت Jenny Neural محدد.';
+  const picker=document.getElementById('vocabVoicePicker');
+  if(picker&&picker.value!==voice)picker.value=voice;
 }
 function openVocabAudioDB(){
   return new Promise((resolve,reject)=>{
@@ -3405,14 +3424,14 @@ function openVocabAudioDB(){
     req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('تعذر فتح مخزن الصوت'));
   });
 }
-function vocabAudioKey(phrase){return AZURE_VOCAB_VOICE+'|v1|'+phrase.trim().toLowerCase();}
-async function getCachedVocabAudio(phrase){
+function vocabAudioKey(phrase,voice=getSelectedVocabVoice()){return voice+'|v2|'+phrase.trim().toLowerCase();}
+async function getCachedVocabAudio(phrase,voice=getSelectedVocabVoice()){
   const db=await openVocabAudioDB();
-  return new Promise((resolve,reject)=>{const tx=db.transaction(VOCAB_AUDIO_STORE,'readonly'),req=tx.objectStore(VOCAB_AUDIO_STORE).get(vocabAudioKey(phrase));req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);tx.oncomplete=()=>db.close();});
+  return new Promise((resolve,reject)=>{const tx=db.transaction(VOCAB_AUDIO_STORE,'readonly'),req=tx.objectStore(VOCAB_AUDIO_STORE).get(vocabAudioKey(phrase,voice));req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);tx.oncomplete=()=>db.close();});
 }
-async function saveCachedVocabAudio(phrase,blob){
+async function saveCachedVocabAudio(phrase,blob,voice=getSelectedVocabVoice()){
   const db=await openVocabAudioDB();
-  return new Promise((resolve,reject)=>{const tx=db.transaction(VOCAB_AUDIO_STORE,'readwrite');tx.objectStore(VOCAB_AUDIO_STORE).put(blob,vocabAudioKey(phrase));tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>{db.close();reject(tx.error||new Error('تعذر حفظ الصوت'));};});
+  return new Promise((resolve,reject)=>{const tx=db.transaction(VOCAB_AUDIO_STORE,'readwrite');tx.objectStore(VOCAB_AUDIO_STORE).put(blob,vocabAudioKey(phrase,voice));tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>{db.close();reject(tx.error||new Error('تعذر حفظ الصوت'));};});
 }
 function base64ToAudioBlob(base64,contentType='audio/mpeg'){
   const binary=atob(base64),parts=[];
@@ -3440,6 +3459,9 @@ async function playOnlineVocabVoice(phrase,options={}){
   if(previousFinish)previousFinish(false);
   releaseVocabAudioMedia();
   const token=++vocabPlaybackToken;
+  const selectedVoice=options.voice||getSelectedVocabVoice();
+  const isBritish=selectedVoice===AZURE_BRITISH_VOICE;
+  const voiceLabel=isBritish?'البريطاني':'الأمريكي';
   const status=options.statusElement||document.getElementById('studentVocabAudioStatus')||document.getElementById('vocabVoiceStatus');
   const playbackRate=Math.max(.5,Math.min(1.5,Number(options.playbackRate)||1));
   const fallbackRate=Math.max(.5,Math.min(1.5,Number(options.fallbackRate)||(.82*playbackRate)));
@@ -3458,11 +3480,11 @@ async function playOnlineVocabVoice(phrase,options={}){
       try{
         if(!('speechSynthesis' in window)||!('SpeechSynthesisUtterance' in window))throw new Error('Speech synthesis unavailable');
         const utterance=new SpeechSynthesisUtterance(phrase);
-        utterance.lang='en-US';utterance.rate=fallbackRate;utterance.pitch=1;
+        utterance.lang=isBritish?'en-GB':'en-US';utterance.rate=fallbackRate;utterance.pitch=1;
         const voices=window.speechSynthesis.getVoices();
-        const preferred=voices.find(v=>/^en-US$/i.test(v.lang))||voices.find(v=>/^en-/i.test(v.lang));
+        const preferred=voices.find(v=>new RegExp('^'+(isBritish?'en-GB':'en-US')+'$','i').test(v.lang))||voices.find(v=>new RegExp('^'+(isBritish?'en-GB':'en-US')+'-','i').test(v.lang))||voices.find(v=>/^en-/i.test(v.lang));
         if(preferred)utterance.voice=preferred;
-        utterance.onstart=()=>{if(isActive()&&status)status.textContent=options.playingMessage||'يعمل النطق بالصوت الإنجليزي الأمريكي المتاح على هذا الجهاز.';};
+        utterance.onstart=()=>{if(isActive()&&status)status.textContent=options.playingMessage||('يعمل النطق بالصوت الإنجليزي '+voiceLabel+' المتاح على هذا الجهاز.');};
         utterance.onend=()=>{if(isActive()){if(status)status.textContent='انتهى النطق.';finish(true);}};
         utterance.onerror=()=>{if(isActive()){if(status)status.textContent='تعذر تشغيل الصوت. حاول مرة أخرى.';finish(false);}};
         window.speechSynthesis.speak(utterance);
@@ -3471,17 +3493,17 @@ async function playOnlineVocabVoice(phrase,options={}){
     (async()=>{
       try{
         let audioBlob=null,fromCache=false;
-        try{audioBlob=await getCachedVocabAudio(phrase);fromCache=!!audioBlob;}catch(cacheError){console.warn('Audio cache read failed:',cacheError);}
+        try{audioBlob=await getCachedVocabAudio(phrase,selectedVoice);fromCache=!!audioBlob;}catch(cacheError){console.warn('Audio cache read failed:',cacheError);}
         if(!isActive()){finish(false);return;}
         if(!audioBlob){
           if(!supabaseClient)throw new Error('اتصال Supabase غير جاهز.');
-          const {data,error}=await supabaseClient.functions.invoke('azure-tts',{body:{text:phrase}});
+          const {data,error}=await supabaseClient.functions.invoke('azure-tts',{body:{text:phrase,voice:selectedVoice}});
           if(!isActive()){finish(false);return;}
           if(error)throw new Error(error.message||'تعذر الاتصال بخدمة Azure Speech.');
           if(!data?.audioBase64)throw new Error(data?.error||'لم تُرجع خدمة Azure ملفاً صوتياً.');
           audioBlob=base64ToAudioBlob(data.audioBase64,data.contentType||'audio/mpeg');
           if(!audioBlob.size)throw new Error('ملف الصوت المستلم فارغ.');
-          try{await saveCachedVocabAudio(phrase,audioBlob);}catch(cacheError){console.warn('Audio cache write failed:',cacheError);}
+          try{await saveCachedVocabAudio(phrase,audioBlob,selectedVoice);}catch(cacheError){console.warn('Audio cache write failed:',cacheError);}
           if(!isActive()){finish(false);return;}
         }
         const objectUrl=URL.createObjectURL(audioBlob);
@@ -3490,7 +3512,7 @@ async function playOnlineVocabVoice(phrase,options={}){
         vocabFallbackAudio=audio;
         audio.playbackRate=playbackRate;
         try{audio.preservesPitch=true;audio.mozPreservesPitch=true;audio.webkitPreservesPitch=true;}catch(e){}
-        audio.onplaying=()=>{if(isActive()&&status)status.textContent=options.playingMessage||(fromCache?'يُشغّل صوت Azure الأمريكي المحفوظ.':'تم توليد صوت Azure الأمريكي وحفظه.');};
+        audio.onplaying=()=>{if(isActive()&&status)status.textContent=options.playingMessage||(fromCache?('يُشغّل صوت Azure '+voiceLabel+' المحفوظ.'):('تم توليد صوت Azure '+voiceLabel+' وحفظه.'));};
         audio.onended=()=>{
           if(!isActive())return;
           if(status)status.textContent='انتهى النطق.';
