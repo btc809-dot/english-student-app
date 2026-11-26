@@ -2321,7 +2321,16 @@ body.cloud-authenticated #dashboard .staff-home-stats>.stat .student-home-stat-i
     <p class="hint">بعد الحفظ، يظهر الموضوع للطلاب المحددين. يتم تقسيم النص تلقائيًا إلى جمل ليسهل الاستماع لكل جملة أو للموضوع كاملًا.</p>
     </div>
   </div>
-  <div class="panel"><h2>📚 موضوعات القراءة المنشورة</h2><div id="readingManagerList"></div>
+  <div class="panel"><h2>📚 موضوعات القراءة المنشورة</h2>
+  <div class="toolbar" style="justify-content:flex-start;margin-bottom:14px">
+    <label style="display:flex;flex-direction:column;gap:7px;min-width:min(100%,260px);font-size:13px;color:var(--muted);font-weight:700">
+      عرض موضوعات مجموعة محددة
+      <select id="readingPublishedGroupFilter" onchange="renderReadingManager()">
+        <option value="">كل المجموعات</option>
+      </select>
+    </label>
+  </div>
+  <div id="readingManagerList"></div>
   <div id="adminReadingPlayer" class="hidden" style="margin-top:14px">
     <div class="toolbar"><button type="button" class="secondary" onclick="backToAdminReadingList()">← قائمة الموضوعات</button><span class="hint">الصوت الأمريكي نفسه المستخدم في قسم الكلمات: Jenny Neural 🇺🇸</span></div>
     <div class="reading-speed-control"><label for="adminReadingSpeedRange">سرعة القراءة: <strong id="adminReadingSpeedValue">1.0×</strong></label><div class="reading-speed-row"><span>🐢 بطيء</span><input id="adminReadingSpeedRange" type="range" min="0.5" max="1.5" step="0.1" value="1" oninput="updateReadingSpeed(this.value)"><span>سريع 🐇</span></div><small class="hint">يمكنك تغيير سرعة الاستماع، وسيُحفظ اختيارك.</small></div>
@@ -2359,7 +2368,18 @@ body.cloud-authenticated #dashboard .staff-home-stats>.stat .student-home-stat-i
   <div id="vocabManagerStats" class="vocab-manager-stats" aria-live="polite"></div>
   <div id="vocabManagerActivity" class="vocab-manager-activity"></div>
 </div>
-<div class="panel"><h2>الدروس المحفوظة</h2><div id="vocabLessonList"></div></div>
+<div class="panel">
+  <h2>📚 دروس الكلمات المحفوظة</h2>
+  <div class="toolbar" style="justify-content:flex-start;margin-bottom:14px">
+    <label style="display:flex;flex-direction:column;gap:7px;min-width:min(100%,260px);font-size:13px;color:var(--muted);font-weight:700">
+      اختر المجموعة لعرض دروسها فقط
+      <select id="vocabPublishedGroupFilter" onchange="renderVocabulary()">
+        <option value="">كل المجموعات</option>
+      </select>
+    </label>
+  </div>
+  <div id="vocabLessonList"></div>
+</div>
 <div id="vocabPractice" class="panel hidden"><div class="toolbar"><h2 id="vocabPracticeTitle">تدريب الكلمات</h2><button class="secondary" onclick="closeVocabPractice()">إغلاق التدريب</button></div><div id="vocabPracticeBody"></div></div>
 </div>
 <div id="leaderboard" class="page hidden">
@@ -3293,8 +3313,17 @@ async function saveVocabLesson(){
 }
 function renderVocabulary(){
   const host=$('vocabLessonList');if(!host)return;
-  const lessons=db.vocabLessons||[];
-  host.innerHTML=lessons.length?lessons.slice().reverse().map(l=>`<div class="vocab-lesson"><div class="vocab-lesson-head"><div>${l.unit?`<div class="hint">${esc(l.unit)}</div>`:''}<b>${esc(l.title)}</b><div class="hint">${esc(db.groups.find(g=>g.id===l.groupId)?.name||'كل المجموعات')} · ${(l.words||[]).length} كلمة</div></div><div class="actions"><button onclick="startVocabPractice('${l.id}','learn')">📖 التعلم والاستماع</button><button class="secondary" onclick="startVocabPractice('${l.id}','cards')">🃏 الكروت التفاعلية</button><button class="green" onclick="startVocabPractice('${l.id}','spelling')">✍️ تحدي الكتابة</button><button class="secondary" onclick="startVocabPractice('${l.id}','quiz')">🎯 الاختبار الشامل</button><button class="green" onclick="startVocabPractice('${l.id}','miniQuiz')">⚡ اختبار مصغر (10 أسئلة)</button><button class="secondary" onclick="editVocabLesson('${l.id}')">تعديل</button><button class="red" onclick="deleteVocabLesson('${l.id}')">حذف</button></div></div><p class="hint">${(l.words||[]).slice(0,5).map(w=>esc(w.english)+' — '+esc(w.arabic)).join(' · ')}${(l.words||[]).length>5?' …':''}</p></div>`).join(''):'<p class="empty">لا توجد دروس كلمات محفوظة حتى الآن.</p>';
+  const filter=$('vocabPublishedGroupFilter');
+  const allLessons=db.vocabLessons||[];
+  if(filter){
+    const selected=filter.value;
+    const groups=db.groups||[];
+    filter.innerHTML='<option value="">كل المجموعات</option>'+groups.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('');
+    if(groups.some(g=>String(g.id)===String(selected)))filter.value=selected;
+  }
+  const selectedGroup=filter?.value||'';
+  const lessons=selectedGroup?allLessons.filter(l=>String(l.groupId||'')===String(selectedGroup)):allLessons;
+  host.innerHTML=lessons.length?lessons.slice().reverse().map(l=>`<div class="vocab-lesson"><div class="vocab-lesson-head"><div>${l.unit?`<div class="hint">${esc(l.unit)}</div>`:''}<b>${esc(l.title)}</b><div class="hint">${esc(db.groups.find(g=>g.id===l.groupId)?.name||'كل المجموعات')} · ${(l.words||[]).length} كلمة</div></div><div class="actions"><button onclick="startVocabPractice('${l.id}','learn')">📖 التعلم والاستماع</button><button class="secondary" onclick="startVocabPractice('${l.id}','cards')">🃏 الكروت التفاعلية</button><button class="green" onclick="startVocabPractice('${l.id}','spelling')">✍️ تحدي الكتابة</button><button class="secondary" onclick="startVocabPractice('${l.id}','quiz')">🎯 الاختبار الشامل</button><button class="green" onclick="startVocabPractice('${l.id}','miniQuiz')">⚡ اختبار مصغر (10 أسئلة)</button><button class="secondary" onclick="editVocabLesson('${l.id}')">تعديل</button><button class="red" onclick="deleteVocabLesson('${l.id}')">حذف</button></div></div><p class="hint">${(l.words||[]).slice(0,5).map(w=>esc(w.english)+' — '+esc(w.arabic)).join(' · ')}${(l.words||[]).length>5?' …':''}</p></div>`).join(''):'<p class="empty">لا توجد دروس كلمات لهذه المجموعة حتى الآن.</p>';
   renderVocabularyStats();
 }
 let vocabStatsRefreshInFlight=false;
@@ -4279,8 +4308,16 @@ async function loadReadingLessons(){
 }
 function renderReadingManager(){
   const host=$('readingManagerList');if(!host)return;
-  const lessons=db.readingLessons||[];
-  host.innerHTML=lessons.length?lessons.map(l=>`<article class="reading-lesson-card"><h3>${esc(l.title)}</h3><div class="hint">${esc(l.unit||'بدون تحديد وحدة')} · ${esc(db.groups.find(g=>g.id===l.groupId)?.name||'كل المجموعات')} · ${splitReadingSentences(l.content).length} جملة</div><p dir="ltr" style="text-align:left;line-height:1.7">${esc((l.content||'').slice(0,220))}${(l.content||'').length>220?'…':''}</p>${currentRole==='admin'?`<div class="reading-manager-actions"><button type="button" onclick="openAdminReading('${l.id}')">🔊 استمع للنص</button><button type="button" class="secondary" onclick="editReadingLesson('${l.id}')">تعديل</button><button type="button" class="red" onclick="deleteReadingLesson('${l.id}')">حذف</button></div>`:''}</article>`).join(''):'<p class="empty">لا توجد موضوعات قراءة منشورة حتى الآن.</p>';
+  const filter=$('readingPublishedGroupFilter');
+  const selected=filter?.value||'';
+  if(filter){
+    const groups=db.groups||[];
+    filter.innerHTML='<option value="">كل المجموعات</option>'+groups.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('');
+    filter.value=groups.some(g=>g.id===selected)?selected:'';
+  }
+  const selectedGroup=filter?.value||'';
+  const lessons=(db.readingLessons||[]).filter(l=>!selectedGroup||l.groupId===selectedGroup);
+  host.innerHTML=lessons.length?lessons.map(l=>`<article class="reading-lesson-card"><h3>${esc(l.title)}</h3><div class="hint">${esc(l.unit||'بدون تحديد وحدة')} · ${esc(db.groups.find(g=>g.id===l.groupId)?.name||'كل المجموعات')} · ${splitReadingSentences(l.content).length} جملة</div><p dir="ltr" style="text-align:left;line-height:1.7">${esc((l.content||'').slice(0,220))}${(l.content||'').length>220?'…':''}</p>${currentRole==='admin'?`<div class="reading-manager-actions"><button type="button" onclick="openAdminReading('${l.id}')">🔊 استمع للنص</button><button type="button" class="secondary" onclick="editReadingLesson('${l.id}')">تعديل</button><button type="button" class="red" onclick="deleteReadingLesson('${l.id}')">حذف</button></div>`:''}</article>`).join(''):(selectedGroup?'<p class="empty">لا توجد موضوعات قراءة منشورة لهذه المجموعة.</p>':'<p class="empty">لا توجد موضوعات قراءة منشورة حتى الآن.</p>');
 }
 function clearReadingForm(){readingEditingId=null;['readingUnit','readingTitle','readingContent','readingFile'].forEach(id=>{const el=$(id);if(el)el.value='';});if($('readingGroup'))$('readingGroup').value='';if($('readingImportStatus'))$('readingImportStatus').textContent='يمكنك كتابة الموضوع أو اختيار ملف PDF أو Word.';}
 function editReadingLesson(id){if(!requireRole(['admin']))return;const l=(db.readingLessons||[]).find(x=>x.id===id);if(!l)return;readingEditingId=id;$('readingUnit').value=l.unit||'';$('readingTitle').value=l.title||'';$('readingGroup').value=l.groupId||'';$('readingContent').value=l.content||'';$('readingImportStatus').textContent='أنت تعدل موضوعًا محفوظًا. راجع النص ثم اضغط حفظ ونشر الموضوع.';$('readingTitle').focus();document.querySelector('#nav button[data-page="reading"]')?.click();}
@@ -5090,17 +5127,12 @@ function rememberStaffPage(pageId){
   try{localStorage.setItem(STAFF_PAGE_STATE_KEY,JSON.stringify({userId:currentSession?.user?.id||'',role:currentRole,page:pageId}));}catch(err){console.warn('تعذر حفظ القسم الحالي:',err);}
 }
 function restoreStaffPage(){
-  if(!['admin','assistant'].includes(currentRole))return false;
-  try{
-    const state=JSON.parse(localStorage.getItem(STAFF_PAGE_STATE_KEY)||'null');
-    if(!state || state.role!==currentRole || (state.userId && state.userId!==currentSession?.user?.id))return false;
-    const page=$(state.page),button=document.querySelector(`#nav button[data-page="${state.page}"]`);
-    if(!page || !button || button.classList.contains('hidden'))return false;
-    document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
-    page.classList.remove('hidden');
-    document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b===button));
-    return true;
-  }catch(err){console.warn('تعذر استعادة القسم السابق:',err);return false;}
+  const page=$('dashboard');
+  if(!page)return false;
+  document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
+  page.classList.remove('hidden');
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='dashboard'));
+  return true;
 }
 document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>{const nextPage=b.dataset.page;if(currentRole==='assistant'&&['homework','reading'].includes(nextPage)){alert('هذا القسم غير متاح لحساب المساعد.');return;}const currentPage=document.querySelector('.page:not(.hidden)')?.id;if(currentPage!==nextPage)stopAllSectionActivity();document.querySelectorAll('#nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));$(nextPage)?.classList.remove('hidden');rememberStaffPage(nextPage);if(nextPage==='vocabulary')refreshVocabularyStats();}));
 $('attDate').value=localDateISO();$('reportMonth').value=localMonthISO();
